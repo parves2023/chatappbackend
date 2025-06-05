@@ -1,100 +1,96 @@
 const express = require('express');
-const http = require('http');
+const mongoose = require('mongoose');
 const cors = require('cors');
+const http = require('http');
 const { Server } = require('socket.io');
-const { MongoClient } = require('mongodb');
+const User = require('./models/user.model');
+const Group = require('./models/group.model');
+const Message = require('./models/message.model');
 
 const app = express();
 app.use(cors());
-
-const server = http.createServer(app);
-
-const uri = 'mongodb+srv://parves32:O6AcxyBUJwPSvda7@cluster0.3tilc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
-const client = new MongoClient(uri);
-
-let messagesCollection;
+app.use(express.json());
 
 // MongoDB connection
-async function connectMongo() {
-  try {
-    await client.connect();
-    const db = client.db('chat-app');
-    messagesCollection = db.collection('messages');
-    console.log('✅ MongoDB Connected');
-  } catch (err) {
-    console.error('❌ MongoDB Connection Failed:', err);
-  }
-}
+mongoose.connect('mongodb+srv://parves32:O6AcxyBUJwPSvda7@cluster0.3tilc.mongodb.net/chat-app?retryWrites=true&w=majority&appName=Cluster0')
 
-connectMongo(); // Call the function
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.error('❌ MongoDB Error:', err));
 
+  //my db name is
+
+// REST API Routes
+app.use('/api/users', require('./routes/user.routes'));
+app.use('/api/groups', require('./routes/group.routes'));
+app.use('/api/messages', require('./routes/message.routes'));
+
+// HTTP and Socket.IO setup
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-  },
+    origin: 'http://localhost:5173', // frontend URL
+    methods: ['GET', 'POST']
+  }
 });
 
-let onlineUsers = 0;
-
 io.on('connection', (socket) => {
-  console.log(`🔌 User connected: ${socket.id}`);
-  onlineUsers++;
-  io.emit('update_users_count', onlineUsers);
+  console.log('🟢 New socket connected:', socket.id);
 
-  socket.on('join', ({ name }) => {
-    socket.username = name;
-    const time = new Date().toLocaleTimeString();
-    console.log(`✅ ${name} joined at ${time}`);
-
-    io.emit('user_joined', {
-      name,
-      timestamp: time,
-    });
+  // Join a group
+  socket.on('join_group', ({ groupId }) => {
+    socket.join(groupId);
+    console.log(`🔗 Socket ${socket.id} joined group ${groupId}`);
   });
 
-  socket.on('send_message', async (data) => {
-    io.emit('receive_message', data);
-
-    // Save to MongoDB
+  // Send group message
+  socket.on('send_group_message', async ({ senderId, groupId, message }) => {
     try {
-      await messagesCollection.insertOne({
-        name: data.name,
-        message: data.message,
-        timestamp: new Date().toLocaleTimeString(),
+      const newMsg = await Message.create({
+        sender: senderId,
+        groupId,
+        data: message,
       });
+
+      const populated = await newMsg.populate('sender', 'name photo');
+
+      io.to(groupId).emit('receive_group_message', populated);
     } catch (err) {
-      console.error('❌ Failed to save message:', err);
+      console.error('❌ Error saving group message:', err);
     }
+  });
+
+  // Private message
+  socket.on('send_private_message', async ({ senderId, receiverId, message }) => {
+    try {
+      const newMsg = await Message.create({
+        sender: senderId,
+        receiver: receiverId,
+        data: message,
+      });
+
+      const populated = await newMsg.populate('sender', 'name photo');
+
+      // Emit to both users (assuming they both join their own room by userId)
+      io.to(senderId).emit('receive_private_message', populated);
+      io.to(receiverId).emit('receive_private_message', populated);
+    } catch (err) {
+      console.error('❌ Error saving private message:', err);
+    }
+  });
+
+  // Join personal room (for private messages)
+  socket.on('register_user', (userId) => {
+    socket.join(userId);
+    console.log(`👤 User ${userId} joined personal room`);
   });
 
   socket.on('disconnect', () => {
-    onlineUsers--;
-    io.emit('update_users_count', onlineUsers);
-
-    const time = new Date().toLocaleTimeString();
-    if (socket.username) {
-      console.log(`❌ ${socket.username} left at ${time}`);
-      io.emit('user_left', {
-        name: socket.username,
-        timestamp: time,
-      });
-    } else {
-      console.log(`❌ Unknown user disconnected: ${socket.id}`);
-    }
+    console.log('🔴 Socket disconnected:', socket.id);
   });
 });
 
-// Optional: Expose saved messages on GET request
-app.get('/messages', async (req, res) => {
-  try {
-    const allMessages = await messagesCollection.find({}).toArray();
-    res.json(allMessages);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-});
-
-server.listen(3000, () => {
-  console.log('🚀 Server running on http://localhost:3000');
+// Run server
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
