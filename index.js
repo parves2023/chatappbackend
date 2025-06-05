@@ -9,7 +9,7 @@ app.use(cors());
 
 const server = http.createServer(app);
 
-const uri = 'mongodb+srv://parves1234:NQZCB7lkxcm3nhKD@cluster0.btjqd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const uri = 'mongodb+srv://parves32:O6AcxyBUJwPSvda7@cluster0.3tilc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 const client = new MongoClient(uri);
 
 let messagesCollection;
