@@ -16,7 +16,7 @@ router.get('/group/:groupId', async (req, res) => {
     }
 
     const messages = await Message.find({ groupId })
-      .populate('sender', 'name photo')
+      .populate('sender', 'name photo') // populate means to replace the sender's ObjectId with the actual user document
       .sort({ timestamp: 1 });
 
     res.json(messages);

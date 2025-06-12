@@ -40,7 +40,7 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// Join a group
+// add member or Join a group 
 router.post('/:groupId/join', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -52,6 +52,43 @@ router.post('/:groupId/join', async (req, res) => {
     res.json(group);
   } catch (err) {
     res.status(500).json({ message: 'Failed to join group', error: err.message });
+  }
+});
+
+
+// show members of a group
+// etch(`http://localhost:3000/api/groups/${groupName}/members`);
+router.get('/:groupId/members', async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId).populate('members admins createdBy');
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+    res.json(group.members);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching group members', error: err.message });
+  }
+}
+);
+
+// remove member from group
+    //  const response = await fetch(`http://localhost:3000/api/groups/${groupId}/remove`
+router.post('/:groupId/remove', async (req, res) => {
+  try {
+    const { memberId } = req.body;
+    const group = await Group.findById(req.params.groupId);
+    console.log('Group:', group, 'User ID:', memberId);
+    //cannot remove admin from the group
+    if (group.admins.includes(memberId)) {
+      return res.status(400).json({ message: 'Cannot remove an admin from the group' });
+    }
+    if (group.members.includes(memberId)) {
+      group.members = group.members.filter(member => member.toString() !== memberId);
+      await group.save();
+    }
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to remove member from group', error: err.message });
   }
 });
 

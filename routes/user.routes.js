@@ -49,6 +49,24 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// get user by name
+// Search users by partial name (case-insensitive)
+router.get('/name/:name', async (req, res) => {
+  try {
+    const users = await User.find({
+      name: { $regex: req.params.name, $options: 'i' }
+    });
+
+    if (!users.length) return res.json([]); // ✅ always return an array
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch users', error: error.message });
+  }
+});
+
+
+// localhost:3000/api/users/name/Parves Mosarof
+
 
 // POST /api/users/login
 router.post('/login', async (req, res) => {

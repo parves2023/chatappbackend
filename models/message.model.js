@@ -13,10 +13,14 @@ const messageSchema = new mongoose.Schema({
   },
   receiver: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'User', 
     default: null, // for private messaging
   },
   data: {
+    type: String,
+    required: true,
+  },
+  SenderName: {
     type: String,
     required: true,
   },
